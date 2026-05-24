@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
+  ArrowRight,
   Bot,
   Check,
   ChevronDown,
@@ -12,6 +14,7 @@ import {
   Code2,
   FileCode2,
   Lightbulb,
+  ListTree,
   Play,
   RotateCw,
   Route,
@@ -30,28 +33,73 @@ const modes: { id: ExplanationMode; label: string; helper: string }[] = [
 ];
 
 export function LearnClient({ slug }: { slug: string }) {
+  const router = useRouter();
   const [instruction, setInstruction] = useState<Instruction | null>(null);
+  const [commands, setCommands] = useState<Instruction[]>([]);
   const [mode, setMode] = useState<ExplanationMode>("technical");
   const [copied, setCopied] = useState(false);
   const [openCode, setOpenCode] = useState(true);
 
   useEffect(() => {
-    fetch(`${apiBase}/api/instructions/${slug}`)
-      .then((res) => res.json())
-      .then((data) => setInstruction(data.instruction));
+    Promise.all([
+      fetch(`${apiBase}/api/instructions/${slug}`).then((res) => res.json()),
+      fetch(`${apiBase}/api/instructions`).then((res) => res.json())
+    ]).then(([lesson, all]) => {
+      setInstruction(lesson.instruction);
+      setCommands(all.instructions ?? []);
+      setCopied(false);
+    });
   }, [slug]);
 
   if (!instruction) {
     return <main className="mx-auto max-w-6xl px-4 py-10">Loading lesson...</main>;
   }
 
+  const commandList = commands.length ? commands : [instruction];
+  const currentIndex = Math.max(0, commandList.findIndex((item) => item.slug === instruction.slug));
+  const previous = commandList[(currentIndex - 1 + commandList.length) % commandList.length];
+  const next = commandList[(currentIndex + 1) % commandList.length];
+
   return (
     <main className="mx-auto max-w-7xl px-4 pb-12 pt-6 sm:px-6">
-      <Button asChild variant="ghost" className="mb-4">
-        <Link href="/">
-          <ArrowLeft size={16} /> Dashboard
-        </Link>
-      </Button>
+      <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-soft">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <Button asChild variant="ghost" className="justify-start">
+            <Link href="/">
+              <ArrowLeft size={16} /> Dashboard
+            </Link>
+          </Button>
+
+          <div className="grid gap-2 sm:grid-cols-[auto_minmax(14rem,22rem)_auto] sm:items-center">
+            <Button asChild variant="outline" className="justify-center">
+              <Link href={`/learn/${previous.slug}`}>
+                <ArrowLeft size={16} /> {previous.name}
+              </Link>
+            </Button>
+            <label className="relative">
+              <span className="sr-only">Select a command to study</span>
+              <ListTree className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground/45" size={17} aria-hidden="true" />
+              <select
+                value={instruction.slug}
+                onChange={(event) => router.push(`/learn/${event.target.value}`)}
+                className="h-10 w-full rounded-md border border-border bg-background pl-10 pr-3 text-sm font-semibold"
+                aria-label="Select a command to study"
+              >
+                {commandList.map((item) => (
+                  <option key={item.slug} value={item.slug}>
+                    Study {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button asChild className="justify-center">
+              <Link href={`/learn/${next.slug}`}>
+                Next: {next.name} <ArrowRight size={16} />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
 
       <section className="overflow-hidden rounded-lg border border-border bg-card shadow-soft">
         <div className="grid lg:grid-cols-[0.95fr_1.05fr]">
